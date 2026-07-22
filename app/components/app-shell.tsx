@@ -18,7 +18,9 @@ function Navigation({ compact = false }: { compact?: boolean }) {
     <nav aria-label="Hoofdnavigatie">
       <ul className={compact ? "grid grid-cols-4" : "space-y-1"}>
         {navigationItems.map((item) => {
-          const isActive = pathname === item.href;
+          const isActive =
+            pathname === item.href ||
+            (item.href !== "/dashboard" && pathname.startsWith(`${item.href}/`));
 
           return (
             <li key={item.href}>
