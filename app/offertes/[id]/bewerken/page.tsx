@@ -1,0 +1,8 @@
+"use client";
+import Link from "next/link";
+import { useParams, useRouter } from "next/navigation";
+import { QuoteForm } from "@/app/components/quote-form";
+import { useQuotes } from "@/app/hooks/use-quotes";
+import { updateQuote } from "@/app/lib/quote-storage";
+import type { QuoteInput } from "@/app/types/quote";
+export default function OfferteBewerkenPage() { const { id } = useParams<{ id: string }>(); const router = useRouter(); const quote = useQuotes().find((item) => item.id === id); if (!quote) return <section className="rounded-xl border border-slate-200 bg-white p-6"><h1 className="text-2xl font-semibold">Offerte niet gevonden</h1><Link className="mt-4 inline-block text-blue-700" href="/offertes">Terug naar offertes</Link></section>; const initialValues: QuoteInput = { customerId: quote.customerId, title: quote.title, date: quote.date, validUntil: quote.validUntil, description: quote.description, status: quote.status, items: quote.items, remarks: quote.remarks, paymentTermDays: quote.paymentTermDays, terms: quote.terms }; function save(input: QuoteInput) { if (updateQuote(id, input)) router.push(`/offertes/${id}`); } return <section className="max-w-4xl"><Link className="text-sm font-medium text-blue-700" href={`/offertes/${id}`}>← Terug naar offerte</Link><header className="mt-6 border-b border-slate-200 pb-6"><p className="text-sm font-medium text-blue-700">{quote.number}</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">Offerte bewerken</h1></header><div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8"><QuoteForm initialValues={initialValues} onSubmit={save} submitLabel="Wijzigingen opslaan" /></div></section>; }
