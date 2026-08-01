@@ -1,8 +1,67 @@
 "use client";
+
 import Link from "next/link";
 import { useState } from "react";
-import { useQuotes } from "@/app/hooks/use-quotes";
 import { useSupabaseQuotes } from "@/app/hooks/use-supabase-quotes";
-import { deleteQuote } from "@/app/lib/supabase/quotes";
 import { formatCurrency, quoteTotals } from "@/app/lib/quote-calculations";
-export default function OffertesPage(){const {quotes,isLoading,error,refresh}=useSupabaseQuotes();const localQuotes=useQuotes();const [message,setMessage]=useState("");async function remove(id:string,number:string){if(!window.confirm(`Weet u zeker dat u offerte ${number} wilt verwijderen?`))return;try{await deleteQuote(id);setMessage(`Offerte ${number} is verwijderd.`);await refresh();}catch(reason){setMessage(reason instanceof Error?reason.message:"Offerte verwijderen is niet gelukt.");}}const table=(items:typeof quotes,local=false)=><div className="mt-5 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="min-w-[700px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Nummer</th><th className="px-4 py-3">Titel</th><th className="px-4 py-3">Datum</th><th className="px-4 py-3">Totaal</th><th className="px-4 py-3">Status</th><th className="px-4 py-3" /></tr></thead><tbody>{items.map(q=><tr className="border-t" key={q.id}><td className="px-4 py-3">{q.number}{local&&<span className="ml-2 rounded bg-amber-100 px-2 py-1 text-xs text-amber-800">Lokaal</span>}</td><td className="px-4 py-3">{q.title}</td><td className="px-4 py-3">{q.date}</td><td className="px-4 py-3">{formatCurrency(quoteTotals(q.items).totalCents)}</td><td className="px-4 py-3">{q.status}</td><td className="px-4 py-3 text-right"><Link className="text-blue-700" href={`/offertes/${q.id}`}>Bekijken</Link>{!local&&<button className="ml-3 text-red-700" onClick={()=>void remove(q.id,q.number)} type="button">Verwijderen</button>}</td></tr>)}</tbody></table></div>;return <><header className="flex items-end justify-between border-b border-slate-200 pb-7"><div><p className="text-sm font-medium text-blue-700">Offertes</p><h1 className="mt-2 text-3xl font-semibold">Uw offertes</h1></div><Link className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white" href="/offertes/nieuw">Nieuwe offerte</Link></header>{message&&<p className="mt-5 rounded border p-3 text-sm">{message}</p>}{isLoading?<p className="mt-6 text-sm text-slate-500">Offertes laden...</p>:error?<div className="mt-6 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p>{error}</p><button className="mt-3 underline" onClick={()=>void refresh()} type="button">Opnieuw proberen</button></div>:<section className="mt-6"><h2 className="text-lg font-semibold">Supabase-offertes</h2>{quotes.length?table(quotes):<p className="mt-3 text-sm text-slate-500">Nog geen offertes.</p>}</section>}<section className="mt-10"><h2 className="text-lg font-semibold">Oude lokale offertes</h2><p className="mt-2 text-sm text-slate-500">Deze offertes blijven tijdelijk leesbaar en zijn nog niet geïmporteerd.</p>{localQuotes.length?table(localQuotes,true):<p className="mt-3 text-sm text-slate-500">Geen lokale offertes.</p>}</section></>;}
+import { deleteQuote } from "@/app/lib/supabase/quotes";
+
+export default function OffertesPage() {
+  const { quotes, isLoading, error, refresh } = useSupabaseQuotes();
+  const [message, setMessage] = useState("");
+
+  async function remove(id: string, number: string) {
+    if (!window.confirm(`Weet u zeker dat u offerte ${number} wilt verwijderen?`)) return;
+
+    try {
+      await deleteQuote(id);
+      setMessage(`Offerte ${number} is verwijderd.`);
+      await refresh();
+    } catch (reason) {
+      setMessage(reason instanceof Error ? reason.message : "Offerte verwijderen is niet gelukt.");
+    }
+  }
+
+  return (
+    <>
+      <header className="flex items-end justify-between border-b border-slate-200 pb-7">
+        <div>
+          <p className="text-sm font-medium text-blue-700">Offertes</p>
+          <h1 className="mt-2 text-3xl font-semibold">Uw offertes</h1>
+        </div>
+        <Link className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white" href="/offertes/nieuw">
+          Nieuwe offerte
+        </Link>
+      </header>
+
+      {message && <p className="mt-5 rounded border p-3 text-sm">{message}</p>}
+
+      {isLoading ? (
+        <p className="mt-6 text-sm text-slate-500">Offertes laden...</p>
+      ) : error ? (
+        <div className="mt-6 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <p>{error}</p>
+          <button className="mt-3 underline" onClick={() => void refresh()} type="button">Opnieuw proberen</button>
+        </div>
+      ) : quotes.length === 0 ? (
+        <p className="mt-6 text-sm text-slate-500">Nog geen offertes. Maak uw eerste offerte aan.</p>
+      ) : (
+        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
+          <table className="min-w-[700px] w-full text-left text-sm">
+            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
+              <tr><th className="px-4 py-3">Nummer</th><th className="px-4 py-3">Titel</th><th className="px-4 py-3">Datum</th><th className="px-4 py-3">Totaal</th><th className="px-4 py-3">Status</th><th className="px-4 py-3" /></tr>
+            </thead>
+            <tbody>
+              {quotes.map((quote) => (
+                <tr className="border-t" key={quote.id}>
+                  <td className="px-4 py-3">{quote.number}</td><td className="px-4 py-3">{quote.title}</td><td className="px-4 py-3">{quote.date}</td><td className="px-4 py-3">{formatCurrency(quoteTotals(quote.items).totalCents)}</td><td className="px-4 py-3">{quote.status}</td>
+                  <td className="px-4 py-3 text-right"><Link className="text-blue-700" href={`/offertes/${quote.id}`}>Bekijken</Link><button className="ml-3 text-red-700" onClick={() => void remove(quote.id, quote.number)} type="button">Verwijderen</button></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
