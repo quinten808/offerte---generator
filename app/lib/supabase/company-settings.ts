@@ -21,10 +21,15 @@ type CompanySettingsRow = {
   default_vat_percentage: 0 | 9 | 21;
   default_closing_text: string | null;
   terms: string | null;
+  logo_path: string | null;
   logo_data_url: string | null;
 };
 
-const columns = "user_id,company_name,owner_name,email,phone,website,street,house_number,postal_code,city,country,chamber_of_commerce,vat_number,iban,default_validity_days,default_payment_term_days,default_vat_percentage,default_closing_text,terms,logo_data_url";
+const columns = "user_id,company_name,owner_name,email,phone,website,street,house_number,postal_code,city,country,chamber_of_commerce,vat_number,iban,default_validity_days,default_payment_term_days,default_vat_percentage,default_closing_text,terms,logo_path,logo_data_url";
+const logoBucket = "company-logos";
+const logoTypes = ["image/png", "image/jpeg", "image/webp"];
+const logoMaxSize = 1024 * 1024;
+const timeout = 10_000;
 
 function toSettings(row: CompanySettingsRow): CompanySettings {
   return {
@@ -46,6 +51,7 @@ function toSettings(row: CompanySettingsRow): CompanySettings {
     defaultVatRate: row.default_vat_percentage,
     defaultClosingText: row.default_closing_text ?? "",
     terms: row.terms ?? "",
+    logoPath: row.logo_path,
     logoDataUrl: row.logo_data_url,
   };
 }
@@ -71,6 +77,7 @@ function toRow(settings: CompanySettings, userId: string) {
     default_vat_percentage: settings.defaultVatRate,
     default_closing_text: settings.defaultClosingText.trim() || null,
     terms: settings.terms.trim() || null,
+    logo_path: settings.logoPath ?? null,
     logo_data_url: settings.logoDataUrl,
   };
 }
@@ -99,4 +106,48 @@ export async function deleteCompanySettings() {
   const userId = await currentUserId();
   const { error } = await createClient().from("company_settings").delete().eq("user_id", userId);
   if (error) throw new Error(`Bedrijfsinstellingen verwijderen is niet gelukt: ${error.message}`);
+}
+
+function logoExtension(file: File) {
+  if (file.type === "image/png") return "png";
+  if (file.type === "image/webp") return "webp";
+  return "jpg";
+}
+
+function validateLogo(file: File) {
+  if (!logoTypes.includes(file.type)) throw new Error("Kies een PNG-, JPG-, JPEG- of WEBP-bestand.");
+  if (file.size > logoMaxSize) throw new Error("Het logo mag maximaal 1 MB groot zijn.");
+}
+
+async function withinTimeout<T>(operation: Promise<T>, message: string) {
+  let timer: number | undefined;
+  try {
+    return await Promise.race([operation, new Promise<T>((_, reject) => { timer = window.setTimeout(() => reject(new Error(message)), timeout); })]);
+  } finally {
+    if (timer) window.clearTimeout(timer);
+  }
+}
+
+export async function uploadCompanyLogo(file: File) {
+  validateLogo(file);
+  const userId = await currentUserId();
+  const path = `${userId}/logo.${logoExtension(file)}`;
+  const { error } = await withinTimeout(createClient().storage.from(logoBucket).upload(path, file, { upsert: true, contentType: file.type, cacheControl: "3600" }), "Logo uploaden duurt langer dan 10 seconden.");
+  if (error) throw new Error(`Logo uploaden is niet gelukt: ${error.message}`);
+  return path;
+}
+
+export async function deleteCompanyLogo(path: string) {
+  const userId = await currentUserId();
+  if (!path.startsWith(`${userId}/`)) throw new Error("U mag dit logo niet verwijderen.");
+  const { error } = await withinTimeout(createClient().storage.from(logoBucket).remove([path]), "Logo verwijderen duurt langer dan 10 seconden.");
+  if (error) throw new Error(`Logo verwijderen is niet gelukt: ${error.message}`);
+}
+
+export async function getCompanyLogoUrl(path: string) {
+  const userId = await currentUserId();
+  if (!path.startsWith(`${userId}/`)) throw new Error("U mag dit logo niet lezen.");
+  const { data, error } = await withinTimeout(createClient().storage.from(logoBucket).createSignedUrl(path, 60 * 60), "Logo laden duurt langer dan 10 seconden.");
+  if (error || !data?.signedUrl) throw new Error(`Logo laden is niet gelukt${error ? `: ${error.message}` : "."}`);
+  return data.signedUrl;
 }
