@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useState, type ReactNode } from "react";
+import { createClient } from "@/lib/supabase/client";
 
 const navigationItems = [
   { href: "/dashboard", label: "Dashboard", icon: "▦" },
@@ -46,7 +47,16 @@ function Navigation({ compact = false }: { compact?: boolean }) {
   );
 }
 
+function LogoutButton() {
+  const router = useRouter();
+  const [isLoading, setIsLoading] = useState(false);
+  async function logout() { setIsLoading(true); try { await createClient().auth.signOut(); } finally { router.replace("/login"); router.refresh(); } }
+  return <button className="mt-4 rounded-lg px-3 py-2 text-left text-sm font-medium text-slate-600 hover:bg-slate-50 hover:text-slate-950 disabled:opacity-60" disabled={isLoading} onClick={logout} type="button">{isLoading ? "Uitloggen..." : "Uitloggen"}</button>;
+}
+
 export function AppShell({ children }: { children: ReactNode }) {
+  const pathname = usePathname();
+  if (pathname === "/login") return <>{children}</>;
   return (
     <div className="min-h-screen bg-[#f7f8fa] text-slate-900">
       <aside className="fixed inset-y-0 left-0 hidden w-64 border-r border-slate-200 bg-white px-4 py-6 lg:flex lg:flex-col">
@@ -58,7 +68,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </span>
         </Link>
         <Navigation />
-        <p className="mt-auto px-3 text-xs leading-5 text-slate-400">Eenvoudig inzicht in uw klanten en offertes.</p>
+        <div className="mt-auto"><p className="px-3 text-xs leading-5 text-slate-400">Eenvoudig inzicht in uw klanten en offertes.</p><LogoutButton /></div>
       </aside>
 
       <main className="min-h-screen pb-20 lg:ml-64 lg:pb-0">

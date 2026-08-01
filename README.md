@@ -1,6 +1,17 @@
 # Offertegenerator
 
-Een eenvoudige, responsive basisinterface voor een klusbedrijf om klanten en offertes overzichtelijk te beheren. Deze eerste fase bevat alleen de gebruikersinterface; er is nog geen database, login, PDF-, e-mail- of AI-functionaliteit.
+Een responsive offertegenerator voor een klusbedrijf, met lokale klant-, offerte- en bedrijfsgegevens, PDF-downloads en Supabase-authenticatie. Er is nog geen databasekoppeling voor de applicatiegegevens, e-mail- of AI-functionaliteit.
+
+## Supabase-authenticatie
+
+Maak in de hoofdmap een `.env.local`-bestand. Dit bestand wordt niet gecommit; `.env*` staat in `.gitignore`.
+
+```bash
+NEXT_PUBLIC_SUPABASE_URL=https://uw-project.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
+```
+
+Maak gebruikers handmatig aan via **Supabase Dashboard → Authentication → Users → Add user** en kies een e-mailadres en wachtwoord. De applicatie heeft bewust nog geen registratie- of wachtwoordresetpagina.
 
 ## Installatie
 
