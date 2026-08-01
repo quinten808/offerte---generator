@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import type { FormEvent } from "react";
 import type { CustomerInput } from "@/app/types/customer";
 
 type CustomerFormProps = {
   initialValues?: CustomerInput;
   submitLabel: string;
-  onSubmit: (values: CustomerInput) => void;
+  onSubmit: (values: CustomerInput) => Promise<void>;
 };
 
 type FormErrors = Partial<Record<keyof CustomerInput, string>>;
@@ -43,22 +43,33 @@ const fieldClassName = "mt-1.5 w-full rounded-lg border border-slate-300 bg-whit
 export function CustomerForm({ initialValues = emptyCustomer, submitLabel, onSubmit }: CustomerFormProps) {
   const [values, setValues] = useState<CustomerInput>(initialValues);
   const [errors, setErrors] = useState<FormErrors>({});
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const submitLock = useRef(false);
 
   function updateField(field: keyof CustomerInput, value: string) {
     setValues((currentValues) => ({ ...currentValues, [field]: value }));
     setErrors((currentErrors) => ({ ...currentErrors, [field]: undefined }));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (isSubmitting || submitLock.current) return;
+
     const trimmedValues = Object.fromEntries(
       Object.entries(values).map(([key, value]) => [key, value.trim()]),
     ) as CustomerInput;
     const validationErrors = validate(trimmedValues);
 
     setErrors(validationErrors);
-    if (Object.keys(validationErrors).length === 0) {
-      onSubmit(trimmedValues);
+    if (Object.keys(validationErrors).length > 0) return;
+
+    submitLock.current = true;
+    setIsSubmitting(true);
+    try {
+      await onSubmit(trimmedValues);
+    } finally {
+      submitLock.current = false;
+      setIsSubmitting(false);
     }
   }
 
@@ -99,8 +110,8 @@ export function CustomerForm({ initialValues = emptyCustomer, submitLabel, onSub
           {errors.city && <span className="mt-1.5 block text-sm text-red-700" id="city-error">{errors.city}</span>}
         </label>
       </div>
-      <button className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2" type="submit">
-        {submitLabel}
+      <button className="inline-flex items-center justify-center rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-700 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60" disabled={isSubmitting} type="submit">
+        {isSubmitting ? "Opslaan..." : submitLabel}
       </button>
     </form>
   );
