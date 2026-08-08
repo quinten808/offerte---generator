@@ -1,67 +1,20 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useSupabaseCustomers } from "@/app/hooks/use-supabase-customers";
 import { useSupabaseQuotes } from "@/app/hooks/use-supabase-quotes";
 import { formatCurrency, quoteTotals } from "@/app/lib/quote-calculations";
+import { quoteDeadlineState, statusClass } from "@/app/lib/quote-presentation";
 import { deleteQuote } from "@/app/lib/supabase/quotes";
+import { quoteStatuses } from "@/app/types/quote";
 
 export default function OffertesPage() {
-  const { quotes, isLoading, error, refresh } = useSupabaseQuotes();
-  const [message, setMessage] = useState("");
-
-  async function remove(id: string, number: string) {
-    if (!window.confirm(`Weet u zeker dat u offerte ${number} wilt verwijderen?`)) return;
-
-    try {
-      await deleteQuote(id);
-      setMessage(`Offerte ${number} is verwijderd.`);
-      await refresh();
-    } catch (reason) {
-      setMessage(reason instanceof Error ? reason.message : "Offerte verwijderen is niet gelukt.");
-    }
-  }
-
-  return (
-    <>
-      <header className="flex items-end justify-between border-b border-slate-200 pb-7">
-        <div>
-          <p className="text-sm font-medium text-blue-700">Offertes</p>
-          <h1 className="mt-2 text-3xl font-semibold">Uw offertes</h1>
-        </div>
-        <Link className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white" href="/offertes/nieuw">
-          Nieuwe offerte
-        </Link>
-      </header>
-
-      {message && <p className="mt-5 rounded border p-3 text-sm">{message}</p>}
-
-      {isLoading ? (
-        <p className="mt-6 text-sm text-slate-500">Offertes laden...</p>
-      ) : error ? (
-        <div className="mt-6 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800">
-          <p>{error}</p>
-          <button className="mt-3 underline" onClick={() => void refresh()} type="button">Opnieuw proberen</button>
-        </div>
-      ) : quotes.length === 0 ? (
-        <p className="mt-6 text-sm text-slate-500">Nog geen offertes. Maak uw eerste offerte aan.</p>
-      ) : (
-        <div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white">
-          <table className="min-w-[700px] w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase text-slate-500">
-              <tr><th className="px-4 py-3">Nummer</th><th className="px-4 py-3">Titel</th><th className="px-4 py-3">Datum</th><th className="px-4 py-3">Totaal</th><th className="px-4 py-3">Status</th><th className="px-4 py-3" /></tr>
-            </thead>
-            <tbody>
-              {quotes.map((quote) => (
-                <tr className="border-t" key={quote.id}>
-                  <td className="px-4 py-3">{quote.number}</td><td className="px-4 py-3">{quote.title}</td><td className="px-4 py-3">{quote.date}</td><td className="px-4 py-3">{formatCurrency(quoteTotals(quote.items).totalCents)}</td><td className="px-4 py-3">{quote.status}</td>
-                  <td className="px-4 py-3 text-right"><Link className="text-blue-700" href={`/offertes/${quote.id}`}>Bekijken</Link><button className="ml-3 text-red-700" onClick={() => void remove(quote.id, quote.number)} type="button">Verwijderen</button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </>
-  );
+  const [search, setSearch] = useState(""); const [status, setStatus] = useState(""); const [customerId, setCustomerId] = useState(""); const [dateFrom, setDateFrom] = useState(""); const [dateTo, setDateTo] = useState(""); const [sort, setSort] = useState<"newest"|"oldest"|"number"|"total-desc"|"total-asc">("newest"); const [message, setMessage] = useState("");
+  const filters={status:status as never,customerId,dateFrom,dateTo,sort}; const {quotes,isLoading,error,refresh}=useSupabaseQuotes(filters); const {customers}=useSupabaseCustomers();
+  const visible=useMemo(()=>{ const term=search.trim().toLowerCase(); const matches=term?quotes.filter(q=>[q.number,q.title,q.customerName,q.customerCompany].some(v=>v.toLowerCase().includes(term))):quotes; return [...matches].sort((a,b)=>sort==="number"?a.number.localeCompare(b.number):sort==="total-desc"?quoteTotals(b.items).totalCents-quoteTotals(a.items).totalCents:sort==="total-asc"?quoteTotals(a.items).totalCents-quoteTotals(b.items).totalCents:0); },[quotes,search,sort]);
+  const active=[status,customerId,dateFrom,dateTo,search].filter(Boolean).length;
+  async function remove(id:string,number:string){if(!window.confirm(`Weet u zeker dat u offerte ${number} wilt verwijderen?`))return;try{await deleteQuote(id);setMessage(`Offerte ${number} is verwijderd.`);await refresh();}catch(reason){setMessage(reason instanceof Error?reason.message:"Offerte verwijderen is niet gelukt.");}}
+  function clear(){setSearch("");setStatus("");setCustomerId("");setDateFrom("");setDateTo("");setSort("newest");}
+  return <><header className="flex flex-col gap-5 border-b border-slate-200 pb-7 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm font-medium text-blue-700">Offertes</p><h1 className="mt-2 text-3xl font-semibold">Uw offertes</h1></div><Link className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white" href="/offertes/nieuw">Nieuwe offerte</Link></header>{message&&<p className="mt-5 rounded border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">{message}</p>}<section className="mt-6 rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="grid gap-3 md:grid-cols-3"><input aria-label="Zoek offertes" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" onChange={e=>setSearch(e.target.value)} placeholder="Zoek nummer, titel of klant" value={search}/><select aria-label="Filter op status" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" onChange={e=>setStatus(e.target.value)} value={status}><option value="">Alle statussen</option>{quoteStatuses.map(item=><option key={item}>{item}</option>)}</select><select aria-label="Filter op klant" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" onChange={e=>setCustomerId(e.target.value)} value={customerId}><option value="">Alle klanten</option>{customers.map(item=><option key={item.id} value={item.id}>{item.name}{item.company?` — ${item.company}`:""}</option>)}</select><label className="text-sm">Vanaf<input className="ml-2 rounded border border-slate-300 p-2" onChange={e=>setDateFrom(e.target.value)} type="date" value={dateFrom}/></label><label className="text-sm">Tot<input className="ml-2 rounded border border-slate-300 p-2" onChange={e=>setDateTo(e.target.value)} type="date" value={dateTo}/></label><select aria-label="Sorteren" className="rounded-lg border border-slate-300 px-3 py-2 text-sm" onChange={e=>setSort(e.target.value as typeof sort)} value={sort}><option value="newest">Nieuwste eerst</option><option value="oldest">Oudste eerst</option><option value="number">Offertenummer</option><option value="total-desc">Totaal hoog-laag</option><option value="total-asc">Totaal laag-hoog</option></select></div>{active>0&&<div className="mt-3 flex items-center gap-3 text-sm text-slate-600"><span>{active} actieve filter{active===1?"":"s"}</span><button className="font-semibold text-blue-700" onClick={clear} type="button">Filters wissen</button></div>}</section>{isLoading?<p className="mt-6 text-sm text-slate-500">Offertes laden...</p>:error?<div className="mt-6 rounded border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p>{error}</p><button className="mt-3 underline" onClick={()=>void refresh()} type="button">Opnieuw proberen</button></div>:visible.length===0?<div className="mt-6 rounded-xl border border-dashed border-slate-300 bg-white p-8 text-center"><h2 className="font-semibold">{quotes.length?"Geen offertes gevonden":"Nog geen offertes"}</h2><p className="mt-2 text-sm text-slate-600">{quotes.length?"Pas uw filters aan.":"Maak uw eerste offerte aan."}</p></div>:<div className="mt-6 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="min-w-[850px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Nummer</th><th className="px-4 py-3">Klant</th><th className="px-4 py-3">Titel</th><th className="px-4 py-3">Datum</th><th className="px-4 py-3">Totaal</th><th className="px-4 py-3">Status</th><th className="px-4 py-3"/></tr></thead><tbody>{visible.map(q=>{const deadline=quoteDeadlineState(q);return <tr className="border-t" key={q.id}><td className="px-4 py-3">{q.number}</td><td className="px-4 py-3">{q.customerName}{q.customerCompany&&<span className="block text-xs text-slate-500">{q.customerCompany}</span>}</td><td className="px-4 py-3">{q.title}</td><td className="px-4 py-3">{q.date}</td><td className="px-4 py-3">{formatCurrency(quoteTotals(q.items).totalCents)}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs font-medium ${statusClass(q.status)}`}>{q.status}</span>{deadline&&<span className={`ml-2 rounded-full px-2 py-1 text-xs font-medium ${deadline==="Verlopen"?"bg-amber-100 text-amber-900":"bg-yellow-100 text-yellow-900"}`}>{deadline}</span>}</td><td className="px-4 py-3 text-right"><Link className="text-blue-700" href={`/offertes/${q.id}`}>Bekijken</Link><button className="ml-3 text-red-700" onClick={()=>void remove(q.id,q.number)} type="button">Verwijderen</button></td></tr>;})}</tbody></table></div>}</>;
 }

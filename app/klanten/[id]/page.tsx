@@ -3,72 +3,11 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { deleteCustomer, getCustomerById } from "@/app/lib/supabase/customers";
+import { formatCurrency, quoteTotals } from "@/app/lib/quote-calculations";
+import { statusClass } from "@/app/lib/quote-presentation";
+import { getCustomerById, deleteCustomer } from "@/app/lib/supabase/customers";
+import { countQuotesForCustomer, listQuotes } from "@/app/lib/supabase/quotes";
+import type { QuoteWithCustomer } from "@/app/lib/supabase/quotes";
 import type { Customer } from "@/app/types/customer";
 
-export default function KlantDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const [customer, setCustomer] = useState<Customer>();
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [actionError, setActionError] = useState("");
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  const loadCustomer = useCallback(async () => {
-    setIsLoading(true);
-    setError("");
-    try {
-      setCustomer(await getCustomerById(id));
-    } catch (reason) {
-      setCustomer(undefined);
-      setError(reason instanceof Error ? reason.message : "Klant laden is niet gelukt.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadInitialCustomer() {
-      try {
-        const nextCustomer = await getCustomerById(id);
-        if (isActive) setCustomer(nextCustomer);
-      } catch (reason) {
-        if (isActive) {
-          setCustomer(undefined);
-          setError(reason instanceof Error ? reason.message : "Klant laden is niet gelukt.");
-        }
-      } finally {
-        if (isActive) setIsLoading(false);
-      }
-    }
-
-    void loadInitialCustomer();
-    return () => {
-      isActive = false;
-    };
-  }, [id]);
-
-  async function removeCustomer() {
-    if (!customer || !window.confirm(`Weet u zeker dat u ${customer.name} wilt verwijderen?`)) return;
-    setIsDeleting(true);
-    setActionError("");
-    try {
-      await deleteCustomer(customer.id);
-      router.push("/klanten");
-    } catch (reason) {
-      setActionError(reason instanceof Error ? reason.message : "Klant verwijderen is niet gelukt.");
-    } finally {
-      setIsDeleting(false);
-    }
-  }
-
-  if (isLoading) return <p className="text-sm text-slate-500">Klant laden...</p>;
-  if (error) return <section className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"><p>{error}</p><button className="mt-3 font-semibold underline" onClick={() => void loadCustomer()} type="button">Opnieuw proberen</button></section>;
-  if (!customer) return <section className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm"><h1 className="text-2xl font-semibold">Klant niet gevonden</h1><Link className="mt-4 inline-block text-blue-700" href="/klanten">Terug naar klanten</Link></section>;
-
-  const details = [["Naam", customer.name], ["Bedrijfsnaam", customer.company || "—"], ["E-mail", customer.email], ["Telefoon", customer.phone || "—"], ["Adres", customer.streetAndNumber], ["Postcode en plaats", `${customer.postalCode} ${customer.city}`]];
-  return <section className="max-w-3xl"><Link className="text-sm font-medium text-blue-700" href="/klanten">← Terug naar klanten</Link><header className="mt-6 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm font-medium text-blue-700">Klant</p><h1 className="mt-2 text-3xl font-semibold">{customer.name}</h1></div><div className="flex gap-3"><Link className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold" href={`/klanten/${customer.id}/bewerken`}>Bewerken</Link><button className="rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 disabled:opacity-60" disabled={isDeleting} onClick={() => void removeCustomer()} type="button">{isDeleting ? "Verwijderen..." : "Verwijderen"}</button></div></header>{actionError && <p className="mt-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{actionError}</p>}<div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"><dl className="grid gap-5 sm:grid-cols-2">{details.map(([label, value]) => <div key={label}><dt className="text-sm font-medium text-slate-500">{label}</dt><dd className="mt-1 text-sm">{value}</dd></div>)}</dl></div><Link className="mt-6 inline-flex rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white" href="/offertes">Nieuwe offerte voor deze klant</Link></section>;
-}
+export default function KlantDetailPage(){const {id}=useParams<{id:string}>();const router=useRouter();const [customer,setCustomer]=useState<Customer>();const [quotes,setQuotes]=useState<QuoteWithCustomer[]>([]);const [isLoading,setIsLoading]=useState(true);const [error,setError]=useState("");const [actionError,setActionError]=useState("");const [isDeleting,setIsDeleting]=useState(false);const load=useCallback(async()=>{setIsLoading(true);setError("");try{const [nextCustomer,nextQuotes]=await Promise.all([getCustomerById(id),listQuotes({customerId:id})]);setCustomer(nextCustomer);setQuotes(nextQuotes);}catch(reason){setError(reason instanceof Error?reason.message:"Klant laden is niet gelukt.");}finally{setIsLoading(false);}},[id]);useEffect(()=>{let active=true;async function initial(){try{const [nextCustomer,nextQuotes]=await Promise.all([getCustomerById(id),listQuotes({customerId:id})]);if(active){setCustomer(nextCustomer);setQuotes(nextQuotes);}}catch(reason){if(active)setError(reason instanceof Error?reason.message:"Klant laden is niet gelukt.");}finally{if(active)setIsLoading(false);}}void initial();return()=>{active=false;};},[id]);async function remove(){if(!customer||!window.confirm(`Weet u zeker dat u ${customer.name} wilt verwijderen?`))return;setIsDeleting(true);setActionError("");try{const count=await countQuotesForCustomer(customer.id);if(count>0){setActionError(`Deze klant heeft nog ${count} gekoppelde offerte${count===1?"":"s"} en kan daarom niet worden verwijderd.`);return;}await deleteCustomer(customer.id);router.push("/klanten");}catch(reason){setActionError(reason instanceof Error?reason.message:"Klant verwijderen is niet gelukt.");}finally{setIsDeleting(false);}}if(isLoading)return <p className="text-sm text-slate-500">Klant laden...</p>;if(error)return <section className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"><p>{error}</p><button className="mt-3 underline" onClick={()=>void load()} type="button">Opnieuw proberen</button></section>;if(!customer)return <section className="rounded-xl border border-slate-200 bg-white p-6"><h1 className="text-2xl font-semibold">Klant niet gevonden</h1><Link className="mt-4 inline-block text-blue-700" href="/klanten">Terug naar klanten</Link></section>;const details=[["Naam",customer.name],["Bedrijfsnaam",customer.company||"—"],["E-mail",customer.email],["Telefoon",customer.phone||"—"],["Adres",customer.streetAndNumber||"—"],["Postcode en plaats",`${customer.postalCode} ${customer.city}`.trim()||"—"],["Aangemaakt op",new Intl.DateTimeFormat("nl-NL",{dateStyle:"long"}).format(new Date(customer.createdAt))]];return <section className="max-w-5xl"><Link className="text-sm font-medium text-blue-700" href="/klanten">← Terug naar klanten</Link><header className="mt-6 flex flex-col gap-4 border-b border-slate-200 pb-6 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-sm font-medium text-blue-700">Klant</p><h1 className="mt-2 text-3xl font-semibold">{customer.name}</h1></div><div className="flex flex-wrap gap-3"><Link className="rounded-lg bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white" href={`/offertes/nieuw?customerId=${customer.id}`}>Nieuwe offerte</Link><Link className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold" href={`/klanten/${customer.id}/bewerken`}>Bewerken</Link><button className="rounded-lg border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 disabled:opacity-60" disabled={isDeleting} onClick={()=>void remove()} type="button">{isDeleting?"Verwijderen...":"Verwijderen"}</button></div></header>{actionError&&<div className="mt-5 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800"><p>{actionError}</p>{quotes.length>0&&<Link className="mt-2 inline-block font-semibold underline" href="#offertes">Bekijk gekoppelde offertes</Link>}</div>}<div className="mt-8 rounded-xl border border-slate-200 bg-white p-6 shadow-sm"><dl className="grid gap-5 sm:grid-cols-2">{details.map(([label,value])=><div key={label}><dt className="text-sm font-medium text-slate-500">{label}</dt><dd className="mt-1 text-sm">{value}</dd></div>)}</dl></div><section className="mt-8" id="offertes"><h2 className="text-xl font-semibold">Offertes voor deze klant</h2>{quotes.length===0?<p className="mt-3 text-sm text-slate-600">Nog geen offertes voor deze klant.</p>:<div className="mt-4 overflow-x-auto rounded-xl border border-slate-200 bg-white"><table className="min-w-[650px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-4 py-3">Nummer</th><th className="px-4 py-3">Titel</th><th className="px-4 py-3">Datum</th><th className="px-4 py-3">Totaal</th><th className="px-4 py-3">Status</th></tr></thead><tbody>{quotes.map(q=><tr className="border-t" key={q.id}><td className="px-4 py-3"><Link className="text-blue-700" href={`/offertes/${q.id}`}>{q.number}</Link></td><td className="px-4 py-3">{q.title}</td><td className="px-4 py-3">{q.date}</td><td className="px-4 py-3">{formatCurrency(quoteTotals(q.items).totalCents)}</td><td className="px-4 py-3"><span className={`rounded-full px-2 py-1 text-xs ${statusClass(q.status)}`}>{q.status}</span></td></tr>)}</tbody></table></div>}</section></section>;}

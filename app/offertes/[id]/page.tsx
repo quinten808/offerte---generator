@@ -5,96 +5,26 @@ import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { QuotePdfButton } from "@/app/components/quote-pdf-button";
 import { formatCurrency, lineTotalCents, quoteTotals } from "@/app/lib/quote-calculations";
+import { quoteDeadlineState, statusClass } from "@/app/lib/quote-presentation";
 import { getCustomerById } from "@/app/lib/supabase/customers";
-import { deleteQuote, getQuoteById } from "@/app/lib/supabase/quotes";
+import { changeQuoteStatus, deleteQuote, duplicateQuote, getQuoteById, listQuoteStatusHistory } from "@/app/lib/supabase/quotes";
+import type { QuoteStatusHistory } from "@/app/lib/supabase/quotes";
+import { quoteStatuses } from "@/app/types/quote";
 import type { Customer } from "@/app/types/customer";
-import type { Quote } from "@/app/types/quote";
+import type { Quote, QuoteStatus } from "@/app/types/quote";
 
 export default function OfferteDetailPage() {
-  const { id } = useParams<{ id: string }>();
-  const router = useRouter();
-  const [quote, setQuote] = useState<Quote>();
-  const [customer, setCustomer] = useState<Customer>();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingCustomer, setIsLoadingCustomer] = useState(false);
-  const [error, setError] = useState("");
-  const [customerError, setCustomerError] = useState("");
-  const [deleteError, setDeleteError] = useState("");
-
-  const loadQuote = useCallback(async () => {
-    setIsLoading(true);
-    setError("");
-    setCustomer(undefined);
-    setCustomerError("");
-    try {
-      const nextQuote = await getQuoteById(id);
-      setQuote(nextQuote);
-      if (!nextQuote) return;
-
-      setIsLoadingCustomer(true);
-      try {
-        const nextCustomer = await getCustomerById(nextQuote.customerId);
-        setCustomer(nextCustomer);
-        if (!nextCustomer) setCustomerError("De klant van deze offerte is niet gevonden.");
-      } catch (reason) {
-        setCustomerError(reason instanceof Error ? reason.message : "Klant laden is niet gelukt.");
-      } finally {
-        setIsLoadingCustomer(false);
-      }
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Offerte laden is niet gelukt.");
-    } finally {
-      setIsLoading(false);
-    }
-  }, [id]);
-
-  useEffect(() => {
-    let isActive = true;
-
-    async function loadInitialQuote() {
-      try {
-        const nextQuote = await getQuoteById(id);
-        if (!isActive) return;
-        setQuote(nextQuote);
-        if (!nextQuote) return;
-
-        setIsLoadingCustomer(true);
-        try {
-          const nextCustomer = await getCustomerById(nextQuote.customerId);
-          if (!isActive) return;
-          setCustomer(nextCustomer);
-          if (!nextCustomer) setCustomerError("De klant van deze offerte is niet gevonden.");
-        } catch (reason) {
-          if (isActive) setCustomerError(reason instanceof Error ? reason.message : "Klant laden is niet gelukt.");
-        } finally {
-          if (isActive) setIsLoadingCustomer(false);
-        }
-      } catch (reason) {
-        if (isActive) setError(reason instanceof Error ? reason.message : "Offerte laden is niet gelukt.");
-      } finally {
-        if (isActive) setIsLoading(false);
-      }
-    }
-
-    void loadInitialQuote();
-    return () => { isActive = false; };
-  }, [id]);
-
-  async function remove() {
-    if (!quote || !window.confirm(`Weet u zeker dat u ${quote.number} wilt verwijderen?`)) return;
-    setDeleteError("");
-    try {
-      await deleteQuote(quote.id);
-      router.push("/offertes");
-    } catch (reason) {
-      setDeleteError(reason instanceof Error ? reason.message : "Offerte verwijderen is niet gelukt.");
-    }
-  }
-
+  const { id } = useParams<{ id: string }>(); const router = useRouter();
+  const [quote, setQuote] = useState<Quote>(); const [customer, setCustomer] = useState<Customer>(); const [history, setHistory] = useState<QuoteStatusHistory[]>([]);
+  const [isLoading, setIsLoading] = useState(true); const [error, setError] = useState(""); const [actionError, setActionError] = useState(""); const [status, setStatus] = useState<QuoteStatus>("Concept"); const [note, setNote] = useState(""); const [isSaving, setIsSaving] = useState(false); const [isDuplicating, setIsDuplicating] = useState(false);
+  const load = useCallback(async () => { setIsLoading(true); setError(""); try { const next = await getQuoteById(id); setQuote(next); if (!next) return; setStatus(next.status); const [nextCustomer, nextHistory] = await Promise.all([getCustomerById(next.customerId), listQuoteStatusHistory(id)]); setCustomer(nextCustomer); setHistory(nextHistory); } catch (reason) { setError(reason instanceof Error ? reason.message : "Offerte laden is niet gelukt."); } finally { setIsLoading(false); } }, [id]);
+  useEffect(() => { let active = true; async function initialLoad() { try { const next = await getQuoteById(id); if (!active) return; setQuote(next); if (!next) return; setStatus(next.status); const [nextCustomer, nextHistory] = await Promise.all([getCustomerById(next.customerId), listQuoteStatusHistory(id)]); if (active) { setCustomer(nextCustomer); setHistory(nextHistory); } } catch (reason) { if (active) setError(reason instanceof Error ? reason.message : "Offerte laden is niet gelukt."); } finally { if (active) setIsLoading(false); } } void initialLoad(); return () => { active = false; }; }, [id]);
+  async function saveStatus() { if (!quote || isSaving || quote.status === status) return; setIsSaving(true); setActionError(""); try { await changeQuoteStatus(quote.id, status, note); setNote(""); await load(); } catch (reason) { setActionError(reason instanceof Error ? reason.message : "Status wijzigen is niet gelukt."); } finally { setIsSaving(false); } }
+  async function duplicate() { if (!quote || isDuplicating) return; setIsDuplicating(true); setActionError(""); try { router.push(`/offertes/${await duplicateQuote(quote.id)}`); } catch (reason) { setActionError(reason instanceof Error ? reason.message : "Offerte dupliceren is niet gelukt."); } finally { setIsDuplicating(false); } }
+  async function remove() { if (!quote || !window.confirm(`Weet u zeker dat u ${quote.number} wilt verwijderen?`)) return; try { await deleteQuote(quote.id); router.push("/offertes"); } catch (reason) { setActionError(reason instanceof Error ? reason.message : "Offerte verwijderen is niet gelukt."); } }
   if (isLoading) return <p className="text-sm text-slate-500">Offerte laden...</p>;
-  if (error) return <section className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"><p>{error}</p><button className="mt-3 underline" onClick={() => void loadQuote()} type="button">Opnieuw proberen</button></section>;
-  if (!quote) return <section className="rounded-xl border border-slate-200 bg-white p-6"><h1 className="text-2xl font-semibold">Offerte niet gevonden</h1><Link className="mt-4 inline-block text-blue-700" href="/offertes">Terug naar offertes</Link></section>;
-
-  const totals = quoteTotals(quote.items);
-  return <section className="max-w-4xl"><Link className="text-sm font-medium text-blue-700" href="/offertes">← Terug naar offertes</Link><header className="mt-6 flex flex-col gap-4 border-b border-slate-200 pb-6"><div><p className="text-sm font-medium text-blue-700">{quote.number} · {quote.status}</p><h1 className="mt-2 text-3xl font-semibold tracking-tight">{quote.title}</h1></div><div className="flex flex-wrap gap-3">{isLoadingCustomer ? <span className="px-4 py-2.5 text-sm text-slate-500">Klant laden...</span> : <QuotePdfButton customer={customer} quote={quote} />}<Link className="rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold" href={`/offertes/${quote.id}/bewerken`}>Bewerken</Link><button className="rounded-lg px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50" onClick={() => void remove()} type="button">Verwijderen</button></div></header>{deleteError && <p className="mt-5 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">{deleteError}</p>}<div className="mt-8 grid gap-6 md:grid-cols-3"><section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Klant</h2>{isLoadingCustomer ? <p className="mt-3 text-sm text-slate-500">Klant laden...</p> : customer ? <div className="mt-3 text-sm leading-6 text-slate-600"><p className="font-medium text-slate-950">{customer.name}</p><p>{customer.company}</p><p>{customer.streetAndNumber}</p><p>{customer.postalCode} {customer.city}</p><p>{customer.email}</p><p>{customer.phone}</p></div> : <p className="mt-3 text-sm text-red-700">{customerError || "Klant niet meer beschikbaar."}</p>}</section><section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm md:col-span-2"><h2 className="font-semibold">Offertegegevens</h2><dl className="mt-3 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-slate-500">Datum</dt><dd>{quote.date}</dd></div><div><dt className="text-slate-500">Geldig tot</dt><dd>{quote.validUntil}</dd></div><div><dt className="text-slate-500">Betalingstermijn</dt><dd>{quote.paymentTermDays} dagen</dd></div></dl>{quote.description && <p className="mt-4 whitespace-pre-wrap text-sm text-slate-600">{quote.description}</p>}</section></div><section className="mt-6 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"><div className="overflow-x-auto"><table className="min-w-[680px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Omschrijving</th><th className="px-5 py-3">Aantal</th><th className="px-5 py-3">Prijs</th><th className="px-5 py-3">Btw</th><th className="px-5 py-3 text-right">Totaal</th></tr></thead><tbody>{quote.items.map((item) => <tr className="border-t border-slate-100" key={item.id}><td className="px-5 py-4">{item.description || "—"}</td><td className="px-5 py-4">{item.quantity} {item.unit}</td><td className="px-5 py-4">{formatCurrency(item.pricePerUnitCents)}</td><td className="px-5 py-4">{item.vatRate}%</td><td className="px-5 py-4 text-right">{formatCurrency(lineTotalCents(item))}</td></tr>)}</tbody></table></div><div className="ml-auto max-w-sm space-y-2 border-t border-slate-200 p-5 text-sm"><div className="flex justify-between"><span>Subtotaal</span><span>{formatCurrency(totals.subtotalCents)}</span></div>{totals.vatByRate.filter((vat) => vat.cents > 0).map((vat) => <div className="flex justify-between" key={vat.rate}><span>Btw {vat.rate}%</span><span>{formatCurrency(vat.cents)}</span></div>)}<div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold"><span>Totaal</span><span>{formatCurrency(totals.totalCents)}</span></div></div></section>{(quote.remarks || quote.terms) && <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm"><h2 className="font-semibold">Extra gegevens</h2>{quote.remarks && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{quote.remarks}</p>}{quote.terms && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{quote.terms}</p>}</section>}</section>;
+  if (error) return <section className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm text-red-800"><p>{error}</p><button className="mt-3 underline" onClick={() => void load()} type="button">Opnieuw proberen</button></section>;
+  if (!quote) return <section className="rounded-xl border p-6"><h1 className="text-2xl font-semibold">Offerte niet gevonden</h1><Link className="mt-4 inline-block text-blue-700" href="/offertes">Terug naar offertes</Link></section>;
+  const totals = quoteTotals(quote.items); const deadline = quoteDeadlineState(quote);
+  return <section className="max-w-5xl"><Link className="text-sm font-medium text-blue-700" href="/offertes">← Terug naar offertes</Link><header className="mt-6 flex flex-col gap-4 border-b border-slate-200 pb-6"><div><p className="text-sm font-medium text-blue-700">{quote.number}</p><h1 className="mt-2 text-3xl font-semibold">{quote.title}</h1><span className={`mt-3 inline-block rounded-full px-2 py-1 text-xs ${statusClass(quote.status)}`}>{quote.status}</span>{deadline && <span className="ml-2 rounded-full bg-amber-100 px-2 py-1 text-xs text-amber-900">{deadline}</span>}</div><div className="flex flex-wrap gap-3"><QuotePdfButton customer={customer} quote={quote} /><button className="rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-60" disabled={isDuplicating} onClick={() => void duplicate()} type="button">{isDuplicating ? "Dupliceren..." : "Dupliceren"}</button><Link className="rounded-lg border px-4 py-2 text-sm font-semibold" href={`/offertes/${quote.id}/bewerken`}>Bewerken</Link><button className="px-4 py-2 text-sm font-semibold text-red-700" onClick={() => void remove()} type="button">Verwijderen</button></div></header>{actionError && <p className="mt-5 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-800">{actionError}</p>}<div className="mt-6 grid gap-6 md:grid-cols-3"><section className="rounded-xl border bg-white p-5"><h2 className="font-semibold">Klant</h2>{customer ? <div className="mt-3 text-sm leading-6"><p className="font-medium">{customer.name}</p><p>{customer.company}</p><p>{customer.streetAndNumber}</p><p>{customer.postalCode} {customer.city}</p><p>{customer.email}</p></div> : <p className="mt-3 text-sm">Klant niet beschikbaar.</p>}</section><section className="rounded-xl border bg-white p-5 md:col-span-2"><h2 className="font-semibold">Status wijzigen</h2><div className="mt-4 grid gap-3 sm:grid-cols-[180px_1fr_auto]"><select className="rounded-lg border p-2" onChange={(event) => setStatus(event.target.value as QuoteStatus)} value={status}>{quoteStatuses.map((item) => <option key={item}>{item}</option>)}</select><input className="rounded-lg border p-2" onChange={(event) => setNote(event.target.value)} placeholder="Optionele notitie" value={note} /><button className="rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white disabled:opacity-60" disabled={isSaving || quote.status === status} onClick={() => void saveStatus()} type="button">{isSaving ? "Opslaan..." : "Status opslaan"}</button></div></section></div><section className="mt-6 overflow-x-auto rounded-xl border bg-white"><table className="min-w-[680px] w-full text-left text-sm"><thead className="bg-slate-50 text-xs uppercase text-slate-500"><tr><th className="px-5 py-3">Omschrijving</th><th className="px-5 py-3">Aantal</th><th className="px-5 py-3">Prijs</th><th className="px-5 py-3">Btw</th><th className="px-5 py-3 text-right">Totaal</th></tr></thead><tbody>{quote.items.map((item) => <tr className="border-t" key={item.id}><td className="px-5 py-4">{item.description || "—"}</td><td className="px-5 py-4">{item.quantity} {item.unit}</td><td className="px-5 py-4">{formatCurrency(item.pricePerUnitCents)}</td><td className="px-5 py-4">{item.vatRate}%</td><td className="px-5 py-4 text-right">{formatCurrency(lineTotalCents(item))}</td></tr>)}</tbody></table><div className="ml-auto max-w-sm space-y-2 border-t p-5 text-sm"><div className="flex justify-between"><span>Subtotaal</span><span>{formatCurrency(totals.subtotalCents)}</span></div><div className="flex justify-between font-semibold"><span>Totaal</span><span>{formatCurrency(totals.totalCents)}</span></div></div></section><section className="mt-6 rounded-xl border bg-white p-5"><h2 className="font-semibold">Statusgeschiedenis</h2>{history.length === 0 ? <p className="mt-3 text-sm">Nog geen statusgeschiedenis beschikbaar.</p> : <ol className="mt-4 space-y-4">{history.map((item) => <li className="border-l-2 border-slate-200 pl-4 text-sm" key={item.id}><p className="font-medium">{item.oldStatus ? `${item.oldStatus} → ${item.newStatus}` : item.newStatus}</p><p className="text-slate-500">{new Intl.DateTimeFormat("nl-NL", { dateStyle: "medium", timeStyle: "short" }).format(new Date(item.createdAt))}</p>{item.note && <p>{item.note}</p>}</li>)}</ol>}</section></section>;
 }

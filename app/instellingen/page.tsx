@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import { useCompanyLogoUrl } from "@/app/hooks/use-company-logo-url";
 import { useCompanySettings } from "@/app/hooks/use-company-settings";
@@ -35,6 +35,13 @@ function SettingsForm({ initialSettings, onSave }: { initialSettings: CompanySet
   const isDirty = JSON.stringify(settings) !== JSON.stringify(savedSettings) || Boolean(pendingLogo);
   const previewUrl = localPreview ?? storedLogoUrl;
 
+  useEffect(() => {
+    if (!isDirty) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isDirty]);
+
   const update = <K extends keyof CompanySettings>(key: K, value: CompanySettings[K]) => {
     setSettings((current) => ({ ...current, [key]: value }));
     setMessage("");
@@ -44,6 +51,9 @@ function SettingsForm({ initialSettings, onSave }: { initialSettings: CompanySet
     const nextErrors: Record<string, string> = {};
     if (!settings.companyName.trim()) nextErrors.companyName = "Vul de bedrijfsnaam in.";
     if (settings.email && !/^\S+@\S+\.\S+$/.test(settings.email)) nextErrors.email = "Vul een geldig e-mailadres in.";
+    if (settings.website) { try { new URL(settings.website); } catch { nextErrors.website = "Vul een geldige website-URL in, bijvoorbeeld https://bedrijf.nl."; } }
+    if (settings.iban && !/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(settings.iban.replace(/\s/g, "").toUpperCase())) nextErrors.iban = "Vul een geldig IBAN in.";
+    if (settings.chamberOfCommerce && !/^\d{8}$/.test(settings.chamberOfCommerce.replace(/\s/g, ""))) nextErrors.chamberOfCommerce = "Een KvK-nummer bestaat uit 8 cijfers.";
     if (!Number.isInteger(settings.defaultValidityDays) || settings.defaultValidityDays < 1) nextErrors.defaultValidityDays = "Vul een positief geheel getal in.";
     if (!Number.isInteger(settings.defaultPaymentTermDays) || settings.defaultPaymentTermDays < 1) nextErrors.defaultPaymentTermDays = "Vul een positief geheel getal in.";
     setErrors(nextErrors);
@@ -113,6 +123,7 @@ function SettingsForm({ initialSettings, onSave }: { initialSettings: CompanySet
 
   return <form className="space-y-8" noValidate onSubmit={save}>
     {message && <p className={`rounded-lg border px-4 py-3 text-sm ${message.includes("opgeslagen") || message.includes("verplaatst") || message === "Logo is verwijderd." ? "border-green-200 bg-green-50 text-green-800" : "border-red-200 bg-red-50 text-red-800"}`} role="status">{message}</p>}
+    {Object.keys(errors).length > 0 && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800" role="alert">Controleer de gemarkeerde of ongeldige instellingen voordat u opslaat.</p>}
     <section><h2 className="text-lg font-semibold">Bedrijfsgegevens</h2><div className="mt-4 grid gap-5 sm:grid-cols-2"><label className="sm:col-span-2"><span className={labelClass}>Bedrijfsnaam <span className="text-red-600">*</span></span><input aria-invalid={Boolean(errors.companyName)} className={inputClass} onChange={(event) => update("companyName", event.target.value)} value={settings.companyName} />{errors.companyName && <p className="mt-1 text-sm text-red-700">{errors.companyName}</p>}</label><label><span className={labelClass}>Naam eigenaar/contactpersoon</span><input className={inputClass} onChange={(event) => update("contactName", event.target.value)} value={settings.contactName} /></label><label><span className={labelClass}>E-mailadres</span><input aria-invalid={Boolean(errors.email)} className={inputClass} onChange={(event) => update("email", event.target.value)} type="email" value={settings.email} />{errors.email && <p className="mt-1 text-sm text-red-700">{errors.email}</p>}</label><label><span className={labelClass}>Telefoonnummer</span><input className={inputClass} onChange={(event) => update("phone", event.target.value)} type="tel" value={settings.phone} /></label><label><span className={labelClass}>Website <span className="text-slate-400">(optioneel)</span></span><input className={inputClass} onChange={(event) => update("website", event.target.value)} placeholder="https://" type="url" value={settings.website} /></label></div></section>
     <section><h2 className="text-lg font-semibold">Adresgegevens</h2><div className="mt-4 grid gap-5 sm:grid-cols-2"><label><span className={labelClass}>Straat</span><input className={inputClass} onChange={(event) => update("street", event.target.value)} value={settings.street} /></label><label><span className={labelClass}>Huisnummer</span><input className={inputClass} onChange={(event) => update("houseNumber", event.target.value)} value={settings.houseNumber} /></label><label><span className={labelClass}>Postcode</span><input className={inputClass} onChange={(event) => update("postalCode", event.target.value)} value={settings.postalCode} /></label><label><span className={labelClass}>Plaats</span><input className={inputClass} onChange={(event) => update("city", event.target.value)} value={settings.city} /></label><label><span className={labelClass}>Land</span><input className={inputClass} onChange={(event) => update("country", event.target.value)} value={settings.country} /></label></div></section>
     <section><h2 className="text-lg font-semibold">Administratieve gegevens</h2><div className="mt-4 grid gap-5 sm:grid-cols-3"><label><span className={labelClass}>KvK-nummer</span><input className={inputClass} onChange={(event) => update("chamberOfCommerce", event.target.value)} value={settings.chamberOfCommerce} /></label><label><span className={labelClass}>Btw-nummer</span><input className={inputClass} onChange={(event) => update("vatNumber", event.target.value)} value={settings.vatNumber} /></label><label><span className={labelClass}>IBAN</span><input className={inputClass} onChange={(event) => update("iban", event.target.value)} value={settings.iban} /></label></div></section>

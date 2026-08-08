@@ -42,7 +42,7 @@ export async function downloadQuotePdf({ quote, customer, company, logoImageData
 
   pdf.setFont("helvetica", "bold"); pdf.setFontSize(20); pdf.text("Offerte", margin, y); y += 8;
   pdf.setFont("helvetica", "normal"); pdf.setFontSize(9);
-  pdf.text([`Offertenummer: ${quote.number}`, `Datum: ${formatDate(quote.date)}`, `Geldig tot: ${formatDate(quote.validUntil)}`], margin, y); y += 18;
+  pdf.text([`Offertenummer: ${quote.number}`, `Datum: ${formatDate(quote.date)}`, `Geldig tot: ${formatDate(quote.validUntil)}`, `Status: ${quote.status}`], margin, y); y += 22;
 
   const customerLines = [customer.name, customer.company, customer.streetAndNumber, `${formatPostalCode(customer.postalCode)} ${customer.city}`.trim(), customer.email, formatPhone(customer.phone)].filter(Boolean);
   const customerBlockHeight = Math.max(18, customerLines.length * 4.4 + 12);
