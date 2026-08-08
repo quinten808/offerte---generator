@@ -31,14 +31,14 @@ export function QuotePdfButton({ quote, customer }: { quote: Quote; customer?: C
     setIsGenerating(true);
     setError("");
     let logoWarning = "";
-    let logoDataUrl = company.logoDataUrl;
+    let logoImageData: string | undefined;
     if (company.logoPath) {
-      try { logoDataUrl = await imageUrlToDataUrl(await getCompanyLogoUrl(company.logoPath)); }
-      catch (reason) { logoDataUrl = company.logoDataUrl; logoWarning = reason instanceof Error ? `Logo kon niet worden geladen; de PDF is zonder logo gemaakt. (${reason.message})` : "Logo kon niet worden geladen; de PDF is zonder logo gemaakt."; }
+      try { logoImageData = await imageUrlToDataUrl(await getCompanyLogoUrl(company.logoPath)); }
+      catch (reason) { logoWarning = reason instanceof Error ? `Logo kon niet worden geladen; de PDF is zonder logo gemaakt. (${reason.message})` : "Logo kon niet worden geladen; de PDF is zonder logo gemaakt."; }
     }
 
     try {
-      await downloadQuotePdf({ quote, customer, company: { ...company, logoDataUrl } });
+      await downloadQuotePdf({ quote, customer, company, logoImageData });
       if (logoWarning) setError(logoWarning);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "De PDF kon niet worden gemaakt.");

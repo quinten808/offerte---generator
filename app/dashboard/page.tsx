@@ -10,7 +10,7 @@ export default function DashboardPage() {
   const { customers, isLoading: isLoadingCustomers } = useSupabaseCustomers();
   const { quotes, isLoading: isLoadingQuotes } = useSupabaseQuotes();
   const { settings } = useCompanySettings();
-  const { url: logoUrl } = useCompanyLogoUrl(settings);
+  const { url: logoUrl } = useCompanyLogoUrl(settings.logoPath);
   const cards = [
     { label: "Klanten", value: isLoadingCustomers ? "—" : customers.length, description: "klanten in uw overzicht" },
     { label: "Offertes", value: isLoadingQuotes ? "—" : quotes.length, description: "opgeslagen offertes" },

@@ -22,10 +22,9 @@ type CompanySettingsRow = {
   default_closing_text: string | null;
   terms: string | null;
   logo_path: string | null;
-  logo_data_url: string | null;
 };
 
-const columns = "user_id,company_name,owner_name,email,phone,website,street,house_number,postal_code,city,country,chamber_of_commerce,vat_number,iban,default_validity_days,default_payment_term_days,default_vat_percentage,default_closing_text,terms,logo_path,logo_data_url";
+const columns = "user_id,company_name,owner_name,email,phone,website,street,house_number,postal_code,city,country,chamber_of_commerce,vat_number,iban,default_validity_days,default_payment_term_days,default_vat_percentage,default_closing_text,terms,logo_path";
 const logoBucket = "company-logos";
 const logoTypes = ["image/png", "image/jpeg", "image/webp"];
 const logoMaxSize = 1024 * 1024;
@@ -52,7 +51,6 @@ function toSettings(row: CompanySettingsRow): CompanySettings {
     defaultClosingText: row.default_closing_text ?? "",
     terms: row.terms ?? "",
     logoPath: row.logo_path,
-    logoDataUrl: row.logo_data_url,
   };
 }
 
@@ -78,7 +76,6 @@ function toRow(settings: CompanySettings, userId: string) {
     default_closing_text: settings.defaultClosingText.trim() || null,
     terms: settings.terms.trim() || null,
     logo_path: settings.logoPath ?? null,
-    logo_data_url: settings.logoDataUrl,
   };
 }
 

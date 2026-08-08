@@ -18,9 +18,8 @@ export type CompanySettings = {
   defaultClosingText: string;
   terms: string;
   logoPath: string | null;
-  logoDataUrl: string | null;
 };
 
 export const defaultCompanySettings: CompanySettings = {
-  companyName: "", contactName: "", email: "", phone: "", website: "", street: "", houseNumber: "", postalCode: "", city: "", country: "Nederland", chamberOfCommerce: "", vatNumber: "", iban: "", defaultValidityDays: 14, defaultPaymentTermDays: 14, defaultVatRate: 21, defaultClosingText: "", terms: "", logoPath: null, logoDataUrl: null,
+  companyName: "", contactName: "", email: "", phone: "", website: "", street: "", houseNumber: "", postalCode: "", city: "", country: "Nederland", chamberOfCommerce: "", vatNumber: "", iban: "", defaultValidityDays: 14, defaultPaymentTermDays: 14, defaultVatRate: 21, defaultClosingText: "", terms: "", logoPath: null,
 };

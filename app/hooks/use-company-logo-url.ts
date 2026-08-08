@@ -2,34 +2,28 @@
 
 import { useEffect, useState } from "react";
 import { getCompanyLogoUrl } from "@/app/lib/supabase/company-settings";
-import type { CompanySettings } from "@/app/types/company-settings";
 
-export function useCompanyLogoUrl(settings: Pick<CompanySettings, "logoPath" | "logoDataUrl">) {
-  const [url, setUrl] = useState<string | null>(settings.logoDataUrl);
+export function useCompanyLogoUrl(logoPath: string | null) {
+  const [url, setUrl] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [isLoading, setIsLoading] = useState(Boolean(settings.logoPath));
+  const [isLoading, setIsLoading] = useState(Boolean(logoPath));
 
   useEffect(() => {
     let isActive = true;
 
     async function loadLogo() {
-      setError("");
-      if (!settings.logoPath) {
-        if (isActive) {
-          setUrl(settings.logoDataUrl);
-          setIsLoading(false);
-        }
+      await Promise.resolve();
+      if (!logoPath) {
+        if (isActive) { setUrl(null); setError(""); setIsLoading(false); }
         return;
       }
 
+      if (isActive) { setIsLoading(true); setError(""); }
       try {
-        const signedUrl = await getCompanyLogoUrl(settings.logoPath);
+        const signedUrl = await getCompanyLogoUrl(logoPath);
         if (isActive) setUrl(signedUrl);
       } catch (reason) {
-        if (isActive) {
-          setUrl(settings.logoDataUrl);
-          setError(reason instanceof Error ? reason.message : "Logo laden is niet gelukt.");
-        }
+        if (isActive) { setUrl(null); setError(reason instanceof Error ? reason.message : "Logo laden is niet gelukt."); }
       } finally {
         if (isActive) setIsLoading(false);
       }
@@ -37,7 +31,7 @@ export function useCompanyLogoUrl(settings: Pick<CompanySettings, "logoPath" | "
 
     void loadLogo();
     return () => { isActive = false; };
-  }, [settings.logoDataUrl, settings.logoPath]);
+  }, [logoPath]);
 
   return { url, error, isLoading };
 }

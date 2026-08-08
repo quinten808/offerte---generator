@@ -3,14 +3,14 @@ import type { CompanySettings } from "@/app/types/company-settings";
 import type { Customer } from "@/app/types/customer";
 import type { Quote } from "@/app/types/quote";
 
-type PdfData = { quote: Quote; customer: Customer; company: CompanySettings };
+type PdfData = { quote: Quote; customer: Customer; company: CompanySettings; logoImageData?: string };
 const formatDate = (value: string) => new Intl.DateTimeFormat("nl-NL", { dateStyle: "long" }).format(new Date(`${value}T12:00:00`));
 const safeFilename = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9]+/g, "-").replace(/^-|-$/g, "");
 const imageFormat = (dataUrl: string) => dataUrl.match(/^data:image\/(png|jpeg|webp)/i)?.[1]?.toUpperCase() ?? "PNG";
 const formatPostalCode = (value: string) => { const compact = value.replace(/\s/g, "").toUpperCase(); const match = compact.match(/^(\d{4})([A-Z]{2})$/); return match ? `${match[1]} ${match[2]}` : value; };
 const formatPhone = (value: string) => { const digits = value.replace(/\D/g, ""); const local = digits.startsWith("0031") ? `0${digits.slice(4)}` : digits.startsWith("31") ? `0${digits.slice(2)}` : digits; return /^06\d{8}$/.test(local) ? `${local.slice(0, 2)} ${local.slice(2)}` : value; };
 
-export async function downloadQuotePdf({ quote, customer, company }: PdfData) {
+export async function downloadQuotePdf({ quote, customer, company, logoImageData }: PdfData) {
   if (!company.companyName.trim()) throw new Error("Vul eerst de bedrijfsnaam in bij Instellingen.");
   if (!customer) throw new Error("De klant van deze offerte ontbreekt.");
 
@@ -30,13 +30,13 @@ export async function downloadQuotePdf({ quote, customer, company }: PdfData) {
     pdf.setFont("helvetica", "normal"); pdf.setFontSize(9); pdf.text(lines, margin, y); y += lines.length * 5 + 7;
   };
 
-  if (company.logoDataUrl) {
-    try { pdf.addImage(company.logoDataUrl, imageFormat(company.logoDataUrl), margin, y, 42, 22); } catch { /* Een onbruikbaar logo blokkeert de offerte niet. */ }
+  if (logoImageData) {
+    try { pdf.addImage(logoImageData, imageFormat(logoImageData), margin, y, 42, 22); } catch { /* Een onbruikbaar logo blokkeert de offerte niet. */ }
   }
-  pdf.setFont("helvetica", "bold"); pdf.setFontSize(18); pdf.text(company.companyName, company.logoDataUrl ? 64 : margin, y + 7);
+  pdf.setFont("helvetica", "bold"); pdf.setFontSize(18); pdf.text(company.companyName, logoImageData ? 64 : margin, y + 7);
   pdf.setFont("helvetica", "normal"); pdf.setFontSize(8.5);
   const companyLines = [company.contactName, `${company.street} ${company.houseNumber}`.trim(), `${company.postalCode} ${company.city}`.trim(), company.phone, company.email, company.website].filter(Boolean);
-  pdf.text(companyLines, company.logoDataUrl ? 64 : margin, y + 13);
+  pdf.text(companyLines, logoImageData ? 64 : margin, y + 13);
   y += Math.max(30, companyLines.length * 4.4 + 16);
   pdf.setDrawColor(203, 213, 225); pdf.line(margin, y, pageWidth - margin, y); y += 10;
 
